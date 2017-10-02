@@ -41,6 +41,29 @@ char *signame (int sig) {
   }
 }
 
+static volatile int lastsig = 0;
+
+static void sig_hdl (int sig) {
+  lastsig = sig;
+  jfdtExecTriggerAsync ();
+}
+
+static struct sigaction sig_act = { sig_hdl, 0, 0, 0, 0 };
+
+static void setup_sig (int sig) {
+  sigaction (sig, &sig_act, 0);
+}
+
+void stray (int pid, int status) {
+  if (WIFSIGNALED (status)) {
+    printf ("%s: reaped pid %d died on %s\n", tag (), pid, signame (WTERMSIG (status)));
+  } else if (WIFEXITED (status)) {
+    printf ("%s: reaped pid %s rc %d\n", tag (), pid, WEXITSTATUS (status));
+  } else {
+    printf ("%s: reaped pid %d with status %x\n", tag (), pid, status);
+  }
+}
+
 struct job {
   struct job *next;
   char **param;
@@ -135,6 +158,14 @@ void fire (jfdtTimer_t *tm, jfdtTime_t now) {
   exec_job (j);
 }
 
+void async () {
+  static int thissig = 0;
+  if (lastsig && !thissig) {
+    thissig = lastsig;
+    killall (thissig);
+  }
+}
+
 struct job *mkjob (char **out) {
   struct job *j = malloc (sizeof (struct job));
   j->param = out;
@@ -198,6 +229,12 @@ int main (int argc, char **argv) {
   }
 
   jfdtTimerInit (&down, downfire, 0);
+
+  jfdtExecSetStrayHandler (stray);
+  jfdtExecAddAsyncHandler (async);
+
+  setup_sig (SIGTERM);
+  setup_sig (SIGINT);
 
   /* Start them */
   for (j = joblist; j; j = j->next) {
