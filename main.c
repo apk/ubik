@@ -58,8 +58,9 @@ void stray (int pid, int status) {
   if (WIFSIGNALED (status)) {
     printf ("%s: reaped pid %d died on %s\n", tag (), pid, signame (WTERMSIG (status)));
   } else if (WIFEXITED (status)) {
-    printf ("%s: reaped pid %s rc %d\n", tag (), pid, WEXITSTATUS (status));
+    printf ("%s: reaped pid %d rc %d\n", tag (), pid, WEXITSTATUS (status));
   } else {
+    /* Probably unreachable, the way we waitpid() */
     printf ("%s: reaped pid %d with status %x\n", tag (), pid, status);
   }
 }
@@ -231,6 +232,7 @@ int main (int argc, char **argv) {
   jfdtTimerInit (&down, downfire, 0);
 
   jfdtExecSetStrayHandler (stray);
+
   jfdtExecAddAsyncHandler (async);
 
   setup_sig (SIGTERM);
