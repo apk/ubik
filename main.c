@@ -65,7 +65,12 @@ void stray (int pid, int status) {
   if (WIFSIGNALED (status)) {
     tag ("reaped pid %d died on %s", pid, signame (WTERMSIG (status)));
   } else if (WIFEXITED (status)) {
-    tag ("reaped pid %d rc %d", pid, WEXITSTATUS (status));
+    int rc = WEXITSTATUS (status);
+    if (rc) {
+      tag ("reaped pid %d rc %d", pid, rc);
+    } else {
+      tag ("reaped pid %d", pid);
+    }
   } else {
     /* Probably unreachable, the way we waitpid() */
     tag ("reaped pid %d with status %x", pid, status);

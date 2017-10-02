@@ -2,6 +2,7 @@
 echo "`date +%H:%M:%S` up"
 sleep 2
 sleep 10 &
+(sleep 9; exit 4) &
 sleep 5 &
 sleep 1
 kill $!
