@@ -1,19 +1,26 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <stdarg.h>
+
 #include <jfdt/exec.h>
 
 static int debug = 0;
 
-char *tag () {
+void tag (const char *fmt, ...) {
   static char buf [30];
   jfdtTime_t t = jfdtGetTime ();
-  sprintf (buf, "%02d:%02d:%02d.%03d",
+  va_list ap;
+  va_start (ap, fmt);
+  printf ("%02d:%02d:%02d.%03d: ubik: ",
 	   ((int)t.tv_sec / 3600) % 24,
 	   ((int)t.tv_sec / 60) % 60,
 	   (int)t.tv_sec % 60,
 	   (int)t.tv_usec/1000);
-  return buf;
+  vprintf (fmt, ap);
+  printf ("\n");
+  va_end (ap);
+  fflush (stdout);
 }
 
 char *signame (int sig) {
@@ -56,12 +63,12 @@ static void setup_sig (int sig) {
 
 void stray (int pid, int status) {
   if (WIFSIGNALED (status)) {
-    printf ("%s: reaped pid %d died on %s\n", tag (), pid, signame (WTERMSIG (status)));
+    tag ("reaped pid %d died on %s", pid, signame (WTERMSIG (status)));
   } else if (WIFEXITED (status)) {
-    printf ("%s: reaped pid %d rc %d\n", tag (), pid, WEXITSTATUS (status));
+    tag ("reaped pid %d rc %d", pid, WEXITSTATUS (status));
   } else {
     /* Probably unreachable, the way we waitpid() */
-    printf ("%s: reaped pid %d with status %x\n", tag (), pid, status);
+    tag ("reaped pid %d with status %x", pid, status);
   }
 }
 
@@ -82,12 +89,12 @@ void killall (int sig) {
   struct job *j;
   int f;
   jfdtTime_t t = jfdtGetTime ();
-  if (sig) printf ("%s: shutdown (%s)\n", tag (), signame (sig));
+  if (sig) tag ("shutdown (%s)", signame (sig));
   for (f = 1, j = joblist; j; j = j->next) {
     if (j->pid) f = 0;
   }
   if (f) {
-    printf ("%s: all down, exiting\n", tag ());
+    tag ("all down, exiting");
     exit (0);
   }
   if (sig == 0) return; /* Only checking */
@@ -104,7 +111,7 @@ void killall (int sig) {
   mode = sig;
   for (j = joblist; j; j = j->next) {
     if (j->pid) {
-      printf ("%s: kill %s[%d] with %s\n", tag (), j->param [0], j->pid, signame (sig));
+      tag ("kill %s[%d] with %s", j->param [0], j->pid, signame (sig));
       kill (j->pid, sig);
     }
   }
@@ -120,18 +127,18 @@ void set_timer (struct job *j) {
   jfdtTime_t t = jfdtGetTime ();
   jfdtTimeAddSecs (&t, j->interval);
   jfdtTimerSet (&j->tim, t);
-  if (debug) printf ("%s: start %s in %d\n", tag (), j->param [0], (int)j->interval);
+  if (debug) tag ("start %s in %d", j->param [0], (int)j->interval);
 }
 
 static void term (jfdtExec_t *exe, int status) {
   struct job *j = exe->userdata;
   if (WIFSIGNALED (status)) {
-    printf ("%s: died %s on %s\n", tag (), j->param [0], signame (WTERMSIG (status)));
+    tag ("died %s on %s", j->param [0], signame (WTERMSIG (status)));
   } else if (WIFEXITED (status)) {
     int rc = WEXITSTATUS (status);
-    if (debug || rc || j->interval < 1) printf ("%s: exited %s rc %d\n", tag (), j->param [0], rc);
+    if (debug || rc || j->interval < 1) tag ("exited %s rc %d", j->param [0], rc);
   } else {
-    printf ("%s: waited %s with status %x\n", tag (), j->param [0], status);
+    tag ("waited %s with status %x", j->param [0], status);
   }
   j->pid = 0;
   if (mode == 0) {
@@ -151,7 +158,7 @@ void exec_job (struct job *j) {
     jfdt_trace ("oops");
     exit (1);
   }
-  if (debug) printf ("%s: started %s as pid: %d\n", tag (), j->param [0], j->pid);
+  if (debug) tag ("started %s as pid: %d", j->param [0], j->pid);
 }
 
 void fire (jfdtTimer_t *tm, jfdtTime_t now) {
@@ -227,6 +234,7 @@ int main (int argc, char **argv) {
       printf (" %s", j->param [i]);
     }
     printf ("\n");
+    fflush (stdout);
   }
 
   jfdtTimerInit (&down, downfire, 0);
