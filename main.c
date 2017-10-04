@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #include <jfdt/exec.h>
 #include <jfdt/opts.h>
@@ -83,6 +85,7 @@ struct job {
   char **param;
   char *name;
   char *dir;
+  char *user;
   long interval;
   jfdtExec_t exe;
   jfdtTimer_t tim;
@@ -162,6 +165,29 @@ static void term (jfdtExec_t *exe, int status) {
 
 void inter (jfdtExec_t *exe, void *xud) {
   struct job *j = exe->userdata;
+  if (j->user) {
+    char *t;
+    struct passwd *p = getpwnam (j->user);
+    if (!p) {
+      fprintf (stderr, "No passwd entry for %s\n", j->user);
+      exit (3);
+    }
+    if (setregid (p->pw_gid, p->pw_gid)) {
+      perror ("setgid");
+      exit (4);
+    }
+    if (setreuid (p->pw_uid, p->pw_uid)) {
+      perror ("setuid");
+      exit (4);
+    }
+    if (setenv ("HOME", p->pw_dir, 1) ||
+	setenv ("USER", j->user, 1) ||
+	setenv ("LOGNAME", j->user, 1))
+      {
+	perror ("setenv");
+	exit (4);
+      }
+  }
   if (j->dir) {
     int r = chdir (j->dir);
     if (r == -1) {
@@ -199,6 +225,7 @@ struct job *mkjob (char **out) {
   j->next = joblist;
   j->pid = 0;
   j->name = 0;
+  j->user = 0;
   j->dir = 0;
   joblist = j;
   jfdtTimerInit (&j->tim, fire, j);
@@ -218,6 +245,10 @@ int main (int argc, char **argv) {
     if (in_opts) {
       if ((q = jfdtOptsIsPrefix (p, "name="))) {
 	j->name = q;
+	continue;
+      }
+      if ((q = jfdtOptsIsPrefix (p, "user="))) {
+	j->user = q;
 	continue;
       }
       if ((q = jfdtOptsIsPrefix (p, "dir="))) {
