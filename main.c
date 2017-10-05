@@ -86,7 +86,10 @@ struct job {
   char *name;
   char *dir;
   char *user;
-  long interval;
+  int period;
+  int pause;
+  jfdtTime_t start;
+#define is_task(j) ((j)->period > 0 || (j)->pause > 0)
   jfdtExec_t exe;
   jfdtTimer_t tim;
   int pid;
@@ -114,7 +117,7 @@ void killall (int sig) {
     /* Do the unset only once */
     for (j = joblist; j; j = j->next) {
       if (j->pid) continue;
-      if (j->interval) {
+      if (is_task (j)) {
 	jfdtTimerUnset (&j->tim);
       }
     }
@@ -134,11 +137,19 @@ void downfire (jfdtTimer_t *tm, jfdtTime_t now) {
   killall (SIGKILL);
 }
 
-void set_timer (struct job *j) {
-  jfdtTime_t t = jfdtGetTime ();
-  jfdtTimeAddSecs (&t, j->interval);
+void set_timer (struct job *j, int first) {
+  jfdtTime_t n = jfdtGetTime ();
+  jfdtTime_t u = first ? n : j->start;
+  jfdtTime_t t = n;
+  jfdtTimeAddSecs (&t, j->pause);
+  jfdtTimeAddSecs (&u, j->period);
+  if (jfdtTimeLessThan (t, u)) {
+    t = u;
+  }
   jfdtTimerSet (&j->tim, t);
-  if (debug) tag ("start %s in %d", j->name, (int)j->interval);
+  jfdtTimeSub (&n, t);
+
+  if (debug) tag ("start %s in %d.%03ds", j->name, (int)n.tv_sec, (int)(n.tv_usec / 1000));
 }
 
 static void term (jfdtExec_t *exe, int status) {
@@ -147,14 +158,20 @@ static void term (jfdtExec_t *exe, int status) {
     tag ("died %s on %s", j->name, signame (WTERMSIG (status)));
   } else if (WIFEXITED (status)) {
     int rc = WEXITSTATUS (status);
-    if (debug || rc || j->interval < 1) tag ("exited %s rc %d", j->name, rc);
+    if (debug || rc || !is_task (j)) {
+      if (j->name != j->param [0]) {
+	tag ("exited %s [%s] rc %d", j->name, j->param [0], rc);
+      } else {
+	tag ("exited %s rc %d", j->name, rc);
+      }
+    }
   } else {
     tag ("waited %s with status %x", j->name, status);
   }
   j->pid = 0;
   if (mode == 0) {
-    if (j->interval > 0) {
-      set_timer (j);
+    if (is_task (j)) {
+      set_timer (j, 0);
     } else {
       killall (SIGTERM);
     }
@@ -197,6 +214,7 @@ void inter (jfdtExec_t *exe, void *xud) {
 }
 
 void exec_job (struct job *j) {
+  j->start = jfdtGetTime ();
   j->pid = jfdtExecDo (&j->exe, term, inter, 0, j->param, 0, j, 0);
   if (j->pid == -1) {
     jfdt_trace ("oops");
@@ -221,7 +239,8 @@ void async () {
 struct job *mkjob (char **out) {
   struct job *j = malloc (sizeof (struct job));
   j->param = out;
-  j->interval = 0;
+  j->period = 0;
+  j->pause = 0;
   j->next = joblist;
   j->pid = 0;
   j->name = 0;
@@ -259,7 +278,14 @@ int main (int argc, char **argv) {
 	int v;
 	char *s = jfdtOptsParseNat (q, &v);
 	if (!s) goto bailarg;
-	j->interval = v > 0 ? v : 1;
+	j->pause = v > 0 ? v : 1;
+	continue;
+      }
+      if ((q = jfdtOptsIsPrefix (p, "period="))) {
+	int v;
+	char *s = jfdtOptsParseNat (q, &v);
+	if (!s) goto bailarg;
+	j->period = v > 0 ? v : 1;
 	continue;
       }
     }
@@ -280,12 +306,9 @@ int main (int argc, char **argv) {
     in_opts = 1;
 
     if (*p) {
-      j->interval = strtol (p, &q, 10);
-      if (*q) {
-      bailarg:
-	fprintf (stderr, "ubik: bad opt %s\n", argv [i]);
-	exit (1);
-      }
+    bailarg:
+      fprintf (stderr, "ubik: bad opt %s\n", argv [i]);
+      exit (1);
     }
   }
   *out = 0;
@@ -308,7 +331,7 @@ int main (int argc, char **argv) {
 
   /* Show them */
   for (j = joblist; j; j = j->next) {
-    printf ("[%s:%d]", j->name, (int)j->interval);
+    printf ("[%s:%d:%d]", j->name, j->period, j->pause);
     for (i = 0; j->param [i]; i ++) {
       printf (" %s", j->param [i]);
     }
@@ -327,8 +350,8 @@ int main (int argc, char **argv) {
 
   /* Start them */
   for (j = joblist; j; j = j->next) {
-    if (j->interval > 0) {
-      set_timer (j);
+    if (is_task (j)) {
+      set_timer (j, 1);
     } else {
       exec_job (j);
     }
