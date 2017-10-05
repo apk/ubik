@@ -23,7 +23,7 @@ for that job.
    of at least S seconds in between runs, and with a distance of at least T seconds
    from the previous start.
 - `dir=D` executes the program in D as the current directory.
-- `su=U` executes the program with the user and group id of the user U, and also
+- `user=U` executes the program with the user and group id of the user U, and also
   sets `$HOME`, `$USER`, and `$LOGNAME` accordingly.
 
 The program name must be a full path, no `$PATH` search is performed.
