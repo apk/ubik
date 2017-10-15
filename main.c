@@ -331,7 +331,12 @@ int main (int argc, char **argv) {
 
   /* Show them */
   for (j = joblist; j; j = j->next) {
-    printf ("[%s:%d:%d]", j->name, j->period, j->pause);
+    printf ("[%s", j->name, j->period, j->pause);
+    if (j->period) printf (" period=%d", j->period);
+    if (j->pause) printf (" pause=%d", j->pause);
+    if (j->user) printf (" user=%s", j->user);
+    if (j->dir) printf (" dir=%s", j->dir);
+    printf ("]");
     for (i = 0; j->param [i]; i ++) {
       printf (" %s", j->param [i]);
     }
