@@ -1,8 +1,7 @@
-FROM alpine
-RUN ak add --no-cache gcc
+FROM gcc
 
 RUN mkdir /work
 WORKDIR /work
-COPY src h /work/
+COPY build.sh main.c /work/
 
 RUN sh build.sh
