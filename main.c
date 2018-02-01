@@ -86,6 +86,7 @@ struct job {
   char *name;
   char *dir;
   char *user;
+  char *cron;
   int period;
   int pause;
   jfdtTime_t start;
@@ -246,6 +247,7 @@ struct job *mkjob (char **out) {
   j->name = 0;
   j->user = 0;
   j->dir = 0;
+  j->cron = 0;
   joblist = j;
   jfdtTimerInit (&j->tim, fire, j);
   return j;
@@ -263,21 +265,30 @@ int main (int argc, char **argv) {
     char *p = argv [i];
     if (in_opts) {
       if ((q = jfdtOptsIsPrefix (p, "name="))) {
+	if (j->name) goto bailarg;
 	j->name = q;
 	continue;
       }
       if ((q = jfdtOptsIsPrefix (p, "user="))) {
+	if (j->user) goto bailarg;
 	j->user = q;
 	continue;
       }
       if ((q = jfdtOptsIsPrefix (p, "dir="))) {
+	if (j->dir) goto bailarg;
 	j->dir = q;
+	continue;
+      }
+      if ((q = jfdtOptsIsPrefix (p, "cron="))) {
+	if (j->cron) goto bailarg;
+	j->cron = q;
 	continue;
       }
       if ((q = jfdtOptsIsPrefix (p, "pause="))) {
 	int v;
 	char *s = jfdtOptsParseNat (q, &v);
 	if (!s) goto bailarg;
+	if (j->pause) goto bailarg;
 	j->pause = v > 0 ? v : 1;
 	continue;
       }
@@ -285,6 +296,7 @@ int main (int argc, char **argv) {
 	int v;
 	char *s = jfdtOptsParseNat (q, &v);
 	if (!s) goto bailarg;
+	if (j->period) goto bailarg;
 	j->period = v > 0 ? v : 1;
 	continue;
       }
@@ -307,7 +319,7 @@ int main (int argc, char **argv) {
 
     if (*p) {
     bailarg:
-      fprintf (stderr, "ubik: bad opt %s\n", argv [i]);
+      fprintf (stderr, "ubik: bad (or duplicate) opt %s\n", argv [i]);
       exit (1);
     }
   }
