@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <sys/prctl.h>
 
 #include <jfdt/exec.h>
 #include <jfdt/opts.h>
@@ -364,6 +365,10 @@ int main (int argc, char **argv) {
 
   setup_sig (SIGTERM);
   setup_sig (SIGINT);
+
+  if (getpid () != 1) {
+    prctl (PR_SET_CHILD_SUBREAPER);
+  }
 
   /* Start them */
   for (j = joblist; j; j = j->next) {
