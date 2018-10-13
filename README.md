@@ -8,7 +8,7 @@ Clean up zombie processes.
 
 Basic:
 ```
-ubiq name=first-process /app/the-one args args \
+ubik name=first-process /app/the-one args args \
  --- name=second-process /app/the-other \
  --- name=scheduled pause=360 /app/cleanup
 
