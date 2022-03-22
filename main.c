@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 #include <pwd.h>
 #include <sys/prctl.h>
 

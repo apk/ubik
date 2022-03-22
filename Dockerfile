@@ -1,4 +1,6 @@
-FROM gcc
+FROM alpine
+
+RUN apk add gcc musl-dev git
 
 RUN mkdir /work
 WORKDIR /work
